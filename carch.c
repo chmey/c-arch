@@ -3,13 +3,71 @@
 void printUsage()
 {
   printf("Usage: \n");
-  printf("pack <archive> <file> ... <file> - pack files into archive \n");
-  printf("list <archive> - list archive file contents and information \n");
-  printf("add <archive> <file> - add file to archive \n");
-  printf("strip <archive> <archived file> - remove archived file from archive \n");
-  printf("help - display this help\n");
+  printf("list <archive> - List archive file contents and information.\n");
+  printf("pack <archive> <file> ... <file> - Pack files into archive. If the archive exists, files will be added.\n");
+  //printf("strip <archive> <archived file> - Remove archived file from archive.\n");
+  printf("help - Display this help\n");
 }
 
+const int openArchive(const char* fileName) {
+  const int arch_fd = open(fileName, O_RDONLY);
+  if(arch_fd < 0)
+  {
+    printf("Failed to open the archive.\n");
+    exit(-1);
+  }
+  return arch_fd;
+}
+
+void addFileToArchive(const int arch_fd, const char* fileName) {
+  struct stat f_stat;
+  int r;
+  char buf[1024];
+  int fd = open(fileName, O_RDONLY);
+  if(fd < 0)
+  {
+    printf("Failed to open file %s\n",fileName);
+    exit(-1);
+  }
+  r = fstat(fd, &f_stat);
+  if(r < 0)
+  {
+    printf("Failed to stat file %s\n", fileName);
+    exit(r);
+  }
+  r = write(arch_fd, fileName, strlen(fileName));
+  if(r <= 0)
+  {
+    printf("Failed writing the file name to archive.\n");
+    exit(-1);
+  }
+  r = write(arch_fd, "\0", 1);
+  if(r <= 0)
+  {
+    printf("Failed writing to the archive.\n");
+    exit(-1);
+  }
+  r = write(arch_fd, &f_stat.st_size ,sizeof(off_t));
+  if(r <= 0)
+  {
+    printf("Failed writing to the archive.\n");
+    exit(-1);
+  }
+  ssize_t numRead;
+  while((numRead = read(fd, buf, 1024)) > 0)
+  {
+    if (write(arch_fd, buf, numRead) != numRead)
+    {
+      printf("Failed to write the entire buffer.\n");
+      exit(-1);
+    }
+  }
+  if(r < -1)
+  {
+    exit(-1);
+  }
+  close(fd);
+}
 int main(int argc, char const *argv[]) {
   int r;
   if(argc == 1)
@@ -24,7 +82,7 @@ int main(int argc, char const *argv[]) {
       printUsage();
       exit(0);
     }
-    const int arch_f = open(argv[2], O_WRONLY | O_EXCL | O_CREAT, S_IRUSR | S_IWUSR);
+    const int arch_f = open(argv[2], O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
 
     if(arch_f == -1)
     {
@@ -34,65 +92,8 @@ int main(int argc, char const *argv[]) {
         exit(-1);
       }
     }
-    struct stat arch_stat;
-    off_t arch_size = 0;
-    r = fstat(arch_f, &arch_stat);
-    if(r < 0)
-    {
-      printf("Failed to stat the archive file\n");
-      exit(r);
-    }
-    arch_size = arch_stat.st_size;
     for (int i = 3; i < argc; ++i) {
-      struct stat f_stat;
-      char buf[1024];
-      int fd = open(argv[i], O_RDONLY);
-      if(fd < -1)
-      {
-        printf("Failed to open file %s\n",argv[i]);
-        exit(-1);
-      }
-      r = fstat(fd, &f_stat);
-      if(r < 0)
-      {
-        printf("Failed to stat file %s\n",argv[i]);
-        exit(r);
-      }
-
-      arch_size = arch_size + sizeof(f_stat.st_size) + (strlen(argv[i]) + 1) + f_stat.st_size;
-      // r = ftruncate(arch_f, arch_size);
-      r = write(arch_f, argv[i], strlen(argv[i]));
-      if(r <= 0)
-      {
-        printf("Failed writing the file name to archive.\n");
-        exit(-1);
-      }
-      r = write(arch_f, "\0", 1);
-      if(r <= 0)
-      {
-        printf("Failed writing to the archive.\n");
-        exit(-1);
-      }
-      r = write(arch_f, &f_stat.st_size ,sizeof(off_t));
-      if(r <= 0)
-      {
-        printf("Failed writing to the archive.\n");
-        exit(-1);
-      }
-      ssize_t numRead;
-      while((numRead = read(fd, buf, 1024)) > 0)
-      {
-        if (write(arch_f, buf, numRead) != numRead)
-        {
-          printf("Failed to write the entire buffer.\n");
-          exit(-1);
-        }
-      }
-      if(r < -1)
-      {
-        exit(-1);
-      }
-      close(fd);
+      addFileToArchive(arch_f, argv[i]);
     }
     close(arch_f);
 
@@ -103,16 +104,11 @@ int main(int argc, char const *argv[]) {
       printUsage();
       exit(0);
     }
-    const int arch_f = open(argv[2], O_RDONLY);
-    if(arch_f < 0)
-    {
-      printf("Failed to open the archive.\n");
-      exit(-1);
-    }
+    const int arch_fd = openArchive(argv[2]);
     char buf[1024];
     struct stat arch_stat;
-    r = fstat(arch_f, &arch_stat);
-    FILE* arch_ff = fdopen(arch_f,"rb");
+    r = fstat(arch_fd, &arch_stat);
+    FILE* arch_ff = fdopen(arch_fd,"rb");
     printf("Archive: %s\n",argv[2]);
     printf("Size: %lu Bytes\n", arch_stat.st_size);
     printf("Files: \n");
@@ -133,6 +129,5 @@ int main(int argc, char const *argv[]) {
       fseek(arch_ff, f_size, SEEK_CUR);
     }
   }
-
   return 0;
 }
