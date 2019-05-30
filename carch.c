@@ -23,6 +23,7 @@ void addFileToArchive(const int arch_fd, const char* fileName) {
   struct stat f_stat;
   int r;
   char buf[1024];
+  struct Header hdr;
   int fd = open(fileName, O_RDONLY);
   if(fd < 0)
   {
@@ -35,22 +36,14 @@ void addFileToArchive(const int arch_fd, const char* fileName) {
     printf("Failed to stat file %s\n", fileName);
     exit(r);
   }
-  r = write(arch_fd, fileName, strlen(fileName));
+  strncpy(hdr.file_name, fileName, 99);
+  hdr.file_name[99] = '\0';
+  memcpy(&(hdr.file_size), &(f_stat.st_size), sizeof(off_t));
+  r = write(arch_fd, &hdr ,sizeof(struct Header));
+
   if(r <= 0)
   {
-    printf("Failed writing the file name to archive.\n");
-    exit(-1);
-  }
-  r = write(arch_fd, "\0", 1);
-  if(r <= 0)
-  {
-    printf("Failed writing to the archive.\n");
-    exit(-1);
-  }
-  r = write(arch_fd, &f_stat.st_size ,sizeof(off_t));
-  if(r <= 0)
-  {
-    printf("Failed writing to the archive.\n");
+    printf("Failed writing file header to the archive.\n");
     exit(-1);
   }
   ssize_t numRead;
@@ -89,8 +82,8 @@ int main(int argc, char const *argv[]) {
       if(errno == EEXIST)
       {
         printf("Failed to create the archive: File exists.\n");
-        exit(-1);
       }
+      exit(-1);
     }
     for (int i = 3; i < argc; ++i) {
       addFileToArchive(arch_f, argv[i]);
