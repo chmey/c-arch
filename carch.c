@@ -97,29 +97,22 @@ int main(int argc, char const *argv[]) {
       printUsage();
       exit(0);
     }
-    const int arch_fd = openArchive(argv[2]);
-    char buf[1024];
+    const int arch_fd = open(argv[2], O_RDONLY, S_IRUSR | S_IWUSR);
     struct stat arch_stat;
     r = fstat(arch_fd, &arch_stat);
-    FILE* arch_ff = fdopen(arch_fd,"rb");
     printf("Archive: %s\n",argv[2]);
     printf("Size: %lu Bytes\n", arch_stat.st_size);
     printf("Files: \n");
-    int ch, i;
-    off_t f_size;
-    while(1)
+    struct Header fhdr;
+    u_int16_t i = 0;
+    while((read(arch_fd, &(fhdr.file_name), sizeof(fhdr.file_name)) > 0))
     {
-      ch = fgetc(arch_ff);
-      if(feof(arch_ff)) break;
-      ungetc(ch, arch_ff);
-      i = 0;
-      while ((ch = fgetc(arch_ff)) != '\0' && ch != EOF) {
-        buf[i++] = ch;
-      }
-      buf[i] = '\0';
-      r = fread(&f_size, sizeof(off_t), 1, arch_ff);
-      printf("%s - %lu Bytes \n",buf, f_size);
-      fseek(arch_ff, f_size, SEEK_CUR);
+      ++i;
+      read(arch_fd, &(fhdr.file_size), sizeof(fhdr.file_size));
+      off_t f_size;
+      memcpy(&f_size, &(fhdr.file_size), sizeof(off_t));
+      printf("[%u]: %s - %lu Bytes \n", i ,fhdr.file_name, f_size);
+      lseek(arch_fd, f_size, SEEK_CUR);
     }
   }
   return 0;
