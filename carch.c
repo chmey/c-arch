@@ -154,6 +154,22 @@ int main(int argc, char const *argv[]) {
       {
         memcpy(&(fhdr.file_name), loc, 100);
         char* data = loc+sizeof(struct Header);
+        r = access(fhdr.file_name, F_OK);
+        if(r == 0) {
+          printf("The file exists. Do you want to overwrite it? [y]\n");
+          r = getchar();
+          if(r != 'Y' && r != 'y')
+          {
+            printf("Unpacking canceled by user. \n");
+            exit(0);
+          }
+        }
+        r = access(fhdr.file_name, W_OK);
+        if(r == -1)
+        {
+          printf("File is not writable. Check permissions.\n");
+          exit(-1);
+        }
         FILE* of = fopen(fhdr.file_name, "wb"); //TODO: check if exists
         printf("Unpacking %s\n", fhdr.file_name);
         r = fwrite(data, f_size, 1, of);
