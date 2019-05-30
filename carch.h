@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <sys/mman.h>
 
 struct Header {
   char file_name[100];

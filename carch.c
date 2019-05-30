@@ -5,7 +5,7 @@ void printUsage()
   printf("Usage: \n");
   printf("list <archive> - List archive file contents and information.\n");
   printf("pack <archive> <file> ... <file> - Pack files into archive. If the archive exists, files will be added.\n");
-  //printf("strip <archive> <archived file> - Remove archived file from archive.\n");
+  printf("unpack <archive> <archived_file_no>- Unpack by number specified file. Run `list` to see the numbers.\n");
   printf("help - Display this help\n");
 }
 
@@ -100,6 +100,11 @@ int main(int argc, char const *argv[]) {
     const int arch_fd = open(argv[2], O_RDONLY, S_IRUSR | S_IWUSR);
     struct stat arch_stat;
     r = fstat(arch_fd, &arch_stat);
+    if(r < 0)
+    {
+      printf("Failed to stat the archive.\n");
+      exit(-1);
+    }
     printf("Archive: %s\n",argv[2]);
     printf("Size: %lu Bytes\n", arch_stat.st_size);
     printf("Files: \n");
@@ -114,6 +119,67 @@ int main(int argc, char const *argv[]) {
       printf("[%u]: %s - %lu Bytes \n", i ,fhdr.file_name, f_size);
       lseek(arch_fd, f_size, SEEK_CUR);
     }
+  } else if(strcmp(argv[1], "unpack") == 0)
+  {
+    if(argc !=  4)
+    {
+      printUsage();
+      exit(0);
+    }
+    const int arch_fd = open(argv[2], O_RDONLY, S_IRUSR | S_IWUSR);
+    struct stat arch_stat;
+    r = fstat(arch_fd, &arch_stat);
+    if(r < 0)
+    {
+      printf("Failed to stat the archive.\n");
+      exit(-1);
+    }
+    // ONLY for educational purpose, don't mmap large archives!
+    char *base, *loc;
+    base = mmap(0, arch_stat.st_size, PROT_READ, MAP_PRIVATE, arch_fd, 0);
+    if(base == MAP_FAILED)
+    {
+      printf("Failed to map the archive to memory.\n");
+      exit(-1);
+    }
+    loc = base;
+    u_int16_t file_no = 1;
+    char* end = base+arch_stat.st_size;
+    struct Header fhdr;
+    while (loc < end) {
+      memcpy(&(fhdr.file_size), (loc+100), sizeof(fhdr.file_size));
+      off_t f_size;
+      memcpy(&f_size, &(fhdr.file_size), sizeof(off_t));
+      if(file_no == atoi(argv[3]))
+      {
+        memcpy(&(fhdr.file_name), loc, 100);
+        char* data = loc+sizeof(struct Header);
+        r = access(fhdr.file_name, F_OK);
+        if(r == 0) {
+          printf("The file exists. Do you want to overwrite it? [y]\n");
+          r = getchar();
+          if(r != 'Y' && r != 'y')
+          {
+            printf("Unpacking canceled by user. \n");
+            exit(0);
+          }
+        }
+        r = access(fhdr.file_name, W_OK);
+        if(r == -1)
+        {
+          printf("File is not writable. Check permissions.\n");
+          exit(-1);
+        }
+        FILE* of = fopen(fhdr.file_name, "wb"); //TODO: check if exists
+        printf("Unpacking %s\n", fhdr.file_name);
+        r = fwrite(data, f_size, 1, of);
+        fclose(of);
+        printf("%u Bytes written!\n", r*f_size);
+      }
+      loc = loc + sizeof(struct Header) + f_size;
+      ++file_no;
+    }
+    munmap(base, arch_stat.st_size);
   }
   return 0;
 }
