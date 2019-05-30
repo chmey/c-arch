@@ -7,11 +7,14 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+struct Header {
+  char file_name[100];
+  char file_size[sizeof(off_t)];
+};
+
 void printUsage();
 void addFileToArchive(const int arch_fd, const char* fileName);
 const int openArchive(const char* fileName);
-
-struct f_header {
-  const char* fileName;
-  off_t fileSize;
-};
+// unpacking: memory mapped file
+// try aio
+// save integrity
