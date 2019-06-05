@@ -105,7 +105,7 @@ int main(int argc, char const *argv[]) {
       printf("Failed to stat the archive.\n");
       exit(-1);
     }
-    printf("Archive: %s\n",argv[2]);
+    printf("Archive: %s\n", argv[2]);
     printf("Size: %lu Bytes\n", arch_stat.st_size);
     printf("Files: \n");
     struct Header fhdr;
@@ -147,12 +147,12 @@ int main(int argc, char const *argv[]) {
     char* end = base+arch_stat.st_size;
     struct Header fhdr;
     while (loc < end) {
-      memcpy(&(fhdr.file_size), (loc+100), sizeof(fhdr.file_size));
+      memcpy(&(fhdr.file_size), (loc+sizeof(fhdr.file_name)), sizeof(fhdr.file_size));
       off_t f_size;
       memcpy(&f_size, &(fhdr.file_size), sizeof(off_t));
       if(file_no == atoi(argv[3]))
       {
-        memcpy(&(fhdr.file_name), loc, 100);
+        memcpy(&(fhdr.file_name), loc, sizeof(fhdr.file_name));
         char* data = loc+sizeof(struct Header);
         r = access(fhdr.file_name, F_OK);
         if(r == 0) {
@@ -170,7 +170,7 @@ int main(int argc, char const *argv[]) {
           printf("File is not writable. Check permissions.\n");
           exit(-1);
         }
-        FILE* of = fopen(fhdr.file_name, "wb"); //TODO: check if exists
+        FILE* of = fopen(fhdr.file_name, "wb");
         printf("Unpacking %s\n", fhdr.file_name);
         r = fwrite(data, f_size, 1, of);
         fclose(of);
